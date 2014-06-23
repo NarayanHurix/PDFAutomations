@@ -28,3 +28,15 @@ Command-line arguments:  -os macosx -ws cocoa -arch x86 -product org.eclipse.epp
 
 !ENTRY org.eclipse.core.net 1 0 2014-06-19 09:19:02.564
 !MESSAGE System property http.nonProxyHosts has been set to local|*.local|169.254/16|*.169.254/16 by an external source. This value will be overwritten using the values from the preferences
+
+!ENTRY org.eclipse.ui 4 4 2014-06-19 10:49:46.705
+!MESSAGE Conflicting handlers for org.eclipse.ui.navigate.backwardHistory: {ActionHandler(org.eclipse.ui.internal.dialogs.PreferencePageHistory$1@514d60)} vs {ActionHandler(org.eclipse.ui.internal.NavigationHistoryAction@ad4bb0)}
+
+!ENTRY org.eclipse.ui 4 4 2014-06-19 10:49:46.705
+!MESSAGE Conflicting handlers for org.eclipse.ui.navigate.backwardHistory: {ActionHandler(org.eclipse.ui.internal.dialogs.PreferencePageHistory$1@514d60)} vs {ActionHandler(org.eclipse.ui.internal.NavigationHistoryAction@ad4bb0)}
+
+!ENTRY org.eclipse.ui 4 4 2014-06-19 10:49:46.706
+!MESSAGE Conflicting handlers for org.eclipse.ui.navigate.forwardHistory: {ActionHandler(org.eclipse.ui.internal.NavigationHistoryAction@64f150)} vs {ActionHandler(org.eclipse.ui.internal.dialogs.PreferencePageHistory$2@834bca)}
+
+!ENTRY org.eclipse.ui 4 4 2014-06-19 10:49:46.706
+!MESSAGE Conflicting handlers for org.eclipse.ui.navigate.forwardHistory: {ActionHandler(org.eclipse.ui.internal.NavigationHistoryAction@64f150)} vs {ActionHandler(org.eclipse.ui.internal.dialogs.PreferencePageHistory$2@834bca)}

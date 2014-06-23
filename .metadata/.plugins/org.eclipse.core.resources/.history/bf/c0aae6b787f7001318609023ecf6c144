@@ -1,0 +1,5 @@
+package com.hurix.imagecompression;
+
+public class ImageCompressionEngine {
+
+}

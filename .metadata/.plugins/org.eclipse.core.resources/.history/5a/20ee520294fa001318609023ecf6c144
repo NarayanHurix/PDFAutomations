@@ -1,0 +1,10 @@
+package com.hurix.imagecompression;
+
+public class ImageCompressionEngine {
+	
+	public static void main(String[] args) 
+	{
+		 String workDirectory = "/Users/narayan/Development/PDFSamples/ModifiedPDF/";
+		
+	}
+}

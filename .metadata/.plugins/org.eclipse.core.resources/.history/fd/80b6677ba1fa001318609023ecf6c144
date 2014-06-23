@@ -1,0 +1,40 @@
+package com.hurix.imagecompression;
+
+import java.awt.Frame;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.util.Enumeration;
+import java.util.Vector;
+
+import com.hurix.imageutility.ImageUtils;
+import com.hurix.utils.FileFilterFactory;
+import com.hurix.utils.UIUtils;
+
+public class ImageCompressionEngine {
+	
+	public static void main(String[] args) 
+	{
+		String workDirectory = "/Users/narayan/Development/ImageSamples/";
+		Vector<File> files = UIUtils.getSelectedFiles(new Frame(), 
+		  	 					     FileFilterFactory.IMAGE_FILE_FILTER, false);
+//		Enumeration<File> e = files.elements();
+//		while(e.hasMoreElements()) {
+			float compressRatio = 0.2f;
+			while (compressRatio < 1.0f) {
+				try {
+//					File file = e.nextElement();
+					File file = files.elementAt(0);
+					BufferedImage rawImg = ImageUtils.loadImage(file);
+					BufferedImage img = ImageUtils.compressImage(rawImg, 
+																 compressRatio);
+					File newFile = new File(workDirectory+file.getName()+
+										    "_"+compressRatio+".jpeg");
+					ImageUtils.saveImageToFile(img, newFile, "jpeg");
+					compressRatio += 0.1;
+				} catch(Exception ex) {
+					ex.printStackTrace();
+				}
+			}
+//		}
+	}
+}
