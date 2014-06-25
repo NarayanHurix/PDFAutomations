@@ -14,6 +14,7 @@ import pdftron.PDF.ElementWriter;
 import pdftron.PDF.PDFDoc;
 import pdftron.PDF.Page;
 import pdftron.PDF.PageIterator;
+import pdftron.PDF.Rect;
 import pdftron.PDF.TextExtractor;
 
 import com.hurix.chain.define.Chain;
@@ -56,7 +57,7 @@ public class PDFBlockDetector implements Chain
             pgno = page.getIndex();
             System.out.println("Processing Page Num: "+pgno);
             pageParaBlocks = createPageParaBBox(page);
-            processElements(reader, pgno, doc, pageParaBlocks);     
+            processElements(doc, page, reader, pageParaBlocks);     
          }
       } catch(Exception e) {
          System.out.println("Unable to Process PDF for Word Seperation");
@@ -119,34 +120,35 @@ public class PDFBlockDetector implements Chain
       return pageParaBlocks;
    }
 
-   private void processElements(ElementReader reader, int pageno, PDFDoc doc, 
+   private void processElements(PDFDoc doc, Page page, ElementReader reader,  
                                 List<ParaBlock> pageParaBlocks) throws PDFNetException 
    {
       Element element = null; 
       while ((element = reader.next()) != null) 
       {
-         switch (element.getType()) 
-         {  
-            // Handle Text Element
-            case Element.e_text_begin:
-               processText(reader);
-               break;
-            // Handle Image Elements
-            case Element.e_image:                  
-            case Element.e_inline_image: 
-               processImage(element);
-               break;
-            // Handle Graphic Paths or Shapes
-            case Element.e_path  :
-               processPath(reader, element);
-               break; 
-            // Process Form XObject Element which internally comprise of Image, 
-            // Text or Path Elements  
-            case Element.e_form:
-               reader.formBegin(); 
-               processElements(reader, pageno, doc, pageParaBlocks);
-               reader.end();
-            break; 
+    	  
+          switch (element.getType()) 
+          {  
+              // Handle Text Element
+              case Element.e_text_begin:
+            	  processText(page, reader);
+            	  break;
+            	  // Handle Image Elements
+              case Element.e_image:                  
+              case Element.e_inline_image: 
+            	  processImage(element);
+            	  break;
+              // Handle Graphic Paths or Shapes
+              case Element.e_path  :
+            	  processPath(reader, element);
+            	  break; 
+              // Process Form XObject Element which internally comprise of Image, 
+              // Text or Path Elements  
+              case Element.e_form:
+            	  reader.formBegin(); 
+            	  processElements(doc, page, reader, pageParaBlocks);
+            	  reader.end();
+            	  break; 
          } // End of switch (element.getType())
       } // End of while ((element = reader.next()) != null)
       
@@ -159,7 +161,7 @@ public class PDFBlockDetector implements Chain
     * @throws PDFNetException
     */
    
-   private Block processText(ElementReader page_reader) throws PDFNetException
+   private Block processText(Page page, ElementReader page_reader) throws PDFNetException
    {
       // Begin text element
       System.out.println("Begin Text Block:");
@@ -175,9 +177,15 @@ public class PDFBlockDetector implements Chain
                break;
             case Element.e_text:
                System.out.println("Element Text: " + element.getTextString());
-               // Get the Text Style
-               // Find the corresponding line and para
-               break;
+               // Find the corresponding line and para block
+				Rect bbox = element.getBBox();
+				if (bbox == null) continue;
+				// If the Text Box is not contained in the Page Crop Box, 
+				// then it is ignored 
+				if (!page.getCropBox().getRectangle().contains(bbox.getRectangle()))
+					continue;
+                
+				break;
          }
       }
       return null;

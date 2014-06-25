@@ -104,7 +104,7 @@ public class ReadTagPdf  implements Chain  {
 								//System.out.print(" Type: " + struct_parent.getType() 
 								//		+ ", MCID: " + element.getStructMCID());
 								if(prevMCID != struct_parent.getSDFObj().getObjNum()){
-									paraModel = new ParaBlock();
+									paraModel = new ParaBlock(-1);
 									paraModel.setType(detectParaType(struct_parent.getType()));
 									pageModel.getBlocks().add(paraModel);
 									prevMCID = struct_parent.getSDFObj().getObjNum();
@@ -157,14 +157,14 @@ public class ReadTagPdf  implements Chain  {
 								// set first value
 								if (prevY == 0) {
 									prevY = t.y;
-									line = new Line();
+									line = new Line(null);
 									word = null;
 									paraModel.getLines().add(line);
 								}
 								if (prevY != t.y) {
 									prevY = t.y;
 									if(line == null || line.getWords().size() > 0){
-										line = new Line();
+										line = new Line(null);
 										word = null;
 										paraModel.getLines().add(line);
 									}
@@ -176,7 +176,7 @@ public class ReadTagPdf  implements Chain  {
 									double currentGlyphX = (t.x - cropBoxX1);
 									if ((currentGlyphX - (prevGlyphX + prevGlyphW)) > 20) {
 										if(line == null || line.getWords().size() > 0){
-											line = new Line();
+											line = new Line(null);
 											word = null;
 											paraModel.getLines().add(line);
 										}
