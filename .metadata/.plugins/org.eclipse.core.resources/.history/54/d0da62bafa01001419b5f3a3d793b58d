@@ -173,7 +173,7 @@ public class PDFBlockDetector implements Chain
             	  break;
               // Handle Graphic Paths or Shapes
               case Element.e_path  :
-            	  block = processPath(reader, element);
+            	  processPath(reader, element);
             	  break; 
               // Process Form XObject Element which internally comprise of Image, 
               // Text or Path Elements  
