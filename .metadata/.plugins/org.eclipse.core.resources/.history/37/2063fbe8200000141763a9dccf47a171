@@ -1,0 +1,37 @@
+package com.hurix.model;
+
+import java.awt.geom.Point2D;
+
+public class CharData 
+{
+	private String text;
+	private Style  style;
+	private Point2D.Double position;
+	private String rotationMatrix;
+	
+	public String getText() {
+		return text;
+	}
+	public void setText(String text) {
+		this.text = text;
+	}
+	public Style getStyle() {
+		return style;
+	}
+	public void setStyle(Style style) {
+		this.style = style;
+	}
+	public Point2D.Double getPosition() {
+		return position;
+	}
+	public void setPosition(Point2D.Double position) {
+		this.position = position;
+	}
+	public String getRotationMatrix() {
+		return rotationMatrix;
+	}
+	public void setRotationMatrix(String rotationMatrix) {
+		this.rotationMatrix = rotationMatrix;
+	}
+	
+}

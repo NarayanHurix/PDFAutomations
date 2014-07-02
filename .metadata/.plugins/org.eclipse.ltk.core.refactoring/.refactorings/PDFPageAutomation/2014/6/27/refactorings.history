@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Rename type &apos;com.hurix.model.CharData&apos; to &apos;Word&apos;&#x0A;- Original project: &apos;PDFPageAutomation&apos;&#x0A;- Original element: &apos;com.hurix.model.CharData&apos;&#x0A;- Renamed element: &apos;com.hurix.model.Word&apos;&#x0A;- Update references to refactored element&#x0A;- Update textual occurrences in comments and strings" description="Rename type &apos;CharData&apos;" flags="589830" id="org.eclipse.jdt.ui.rename.type" input="/src&lt;com.hurix.model{CharData.java[CharData" matchStrategy="1" name="Word" qualified="false" references="true" similarDeclarations="false" stamp="1404094850347" textual="false" version="1.0"/>
+</session>

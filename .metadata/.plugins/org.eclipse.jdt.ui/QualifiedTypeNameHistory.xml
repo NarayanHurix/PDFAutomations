@@ -25,4 +25,8 @@
 <fullyQualifiedTypeName name="java.awt.image.AffineTransformOp"/>
 <fullyQualifiedTypeName name="javax.imageio.stream.FileImageOutputStream"/>
 <fullyQualifiedTypeName name="java.awt.image.BufferedImage"/>
+<fullyQualifiedTypeName name="java.util.ListIterator"/>
+<fullyQualifiedTypeName name="java.awt.geom.Rectangle2D.Double"/>
+<fullyQualifiedTypeName name="com.hurix.model.CharData"/>
+<fullyQualifiedTypeName name="java.awt.geom.Point2D.Double"/>
 </qualifiedTypeNameHistroy>

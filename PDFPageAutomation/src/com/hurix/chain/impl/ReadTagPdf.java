@@ -30,7 +30,7 @@ import com.hurix.model.Constants.paraType;
 import com.hurix.model.Line;
 import com.hurix.model.ParaBlock;
 import com.hurix.model.Style;
-import com.hurix.model.CharData;
+import com.hurix.model.Word;
 
 public class ReadTagPdf  implements Chain  {
 	private Chain nextInChain;
@@ -187,7 +187,7 @@ public class ReadTagPdf  implements Chain  {
 								// we need to split the word.
 								if (((t.x - cropBoxX1) - (prevGlyphX + prevGlyphW)) > page_font_sz * 0.2 || word == null) {	
 									if(word == null || word.getText().length() > 0){
-										word = new CharData();
+										word = new Word();
 										line.getWords().add(word);
 									}
 								}

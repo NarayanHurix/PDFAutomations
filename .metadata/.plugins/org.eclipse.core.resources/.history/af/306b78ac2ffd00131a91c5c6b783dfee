@@ -1,0 +1,227 @@
+package com.hurix.chain.impl;
+
+import java.awt.geom.GeneralPath;
+import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+
+import pdftron.Common.PDFNetException;
+import pdftron.PDF.Element;
+import pdftron.PDF.ElementReader;
+import pdftron.PDF.ElementWriter;
+import pdftron.PDF.PDFDoc;
+import pdftron.PDF.Page;
+import pdftron.PDF.PageIterator;
+import pdftron.PDF.Rect;
+import pdftron.PDF.TextExtractor;
+
+import com.hurix.chain.define.Chain;
+import com.hurix.chain.input.ChainRequest;
+import com.hurix.model.Block;
+import com.hurix.model.Line;
+import com.hurix.model.ParaBlock;
+
+public class PDFBlockDetector implements Chain 
+{
+
+   private Chain nextInChain;
+   private List<String> env;
+   
+   @Override
+   public void setNextInChain(Chain nextInChain) {
+      this.nextInChain = nextInChain;
+   }
+
+   @Override
+   public void setEnv(List<String> options) {
+      this.env = options;
+   }
+   
+   @Override
+   public void process(ChainRequest request) 
+   {
+      List<ParaBlock> pageParaBlocks = null;
+      
+      try {
+         PDFDoc doc = (PDFDoc)request.getObj();
+         int num_pages = doc.getPageCount();
+         ElementReader reader = new ElementReader();
+         int pgno = 0 ;
+         for (int i = 1; i <= num_pages; ++i)
+         {
+            PageIterator itr = doc.getPageIterator(i);
+            Page page = (Page)(itr.next());
+            reader.begin(page);
+            pgno = page.getIndex();
+            System.out.println("Processing Page Num: "+pgno);
+            pageParaBlocks = createPageParaBBox(page);
+            processElements(doc, page, reader, pageParaBlocks);     
+         }
+      } catch(Exception e) {
+         System.out.println("Unable to Process PDF for Word Seperation");
+         e.printStackTrace();
+      }
+      
+      if (this.nextInChain != null) {
+         this.nextInChain.process(request);
+      }
+   }
+   
+   /**
+    * This method creates the Para Block BBox for the PDF Page
+    * @param page The PDF Page to be processed
+    * @return The List of ParaBlock for the Page
+    * @throws PDFNetException
+    */
+   
+   private List<ParaBlock> 
+           createPageParaBBox(Page page) throws PDFNetException
+   {
+      ParaBlock paraBlock = null;
+      GeneralPath paraBBox = null;
+      List<ParaBlock> pageParaBlocks = null;
+      Map<Integer, ParaBlock> paraBlockMap = null;
+      Map<Integer, GeneralPath> paraBBoxMap = null;
+      
+      pageParaBlocks = new ArrayList<ParaBlock>();
+      paraBlockMap = new Hashtable<Integer, ParaBlock>();
+      paraBBoxMap = new Hashtable<Integer, GeneralPath>();
+      
+      // Text Extractor to extract Para BBox Blocks 
+      TextExtractor txt = new TextExtractor();
+      txt.begin(page);  // Read the page.
+      TextExtractor.Line line;
+      
+      // Building the Para Blocks and the corresponding BBox of the Para
+      for ( line = txt.getFirstLine(); line.isValid(); line=line.getNextLine())  
+      {  
+         int paraId = line.getParagraphID();
+         paraBBox = paraBBoxMap.get(paraId);
+         paraBlock = paraBlockMap.get(paraId);
+         if (paraBBox == null) {
+            paraBBox = new GeneralPath();
+            paraBlock = new ParaBlock(paraId);
+            pageParaBlocks.add(paraBlock);
+            paraBBoxMap.put(paraId, paraBBox);
+            paraBlockMap.put(paraId, paraBlock);
+         }
+         paraBBox.append(line.getBBox().getRectangle(), true);
+         paraBlock.addLine(new Line(line.getBBox().getRectangle()));
+      }
+      
+      // Setting the BBox of the Para Blocks based on the Bounds set in the 
+      // GeneralPath of paraBBoxMap variable
+      for (ParaBlock temp : pageParaBlocks) {
+         paraBBox = (GeneralPath) paraBBoxMap.get(temp.paraId);
+         temp.setBbox((Rectangle2D.Double)paraBBox.getBounds2D());
+      }
+      return pageParaBlocks;
+   }
+
+   private void processElements(PDFDoc doc, Page page, ElementReader reader,  
+                                List<ParaBlock> pageParaBlocks) throws PDFNetException 
+   {
+      Element element = null; 
+      while ((element = reader.next()) != null) 
+      {
+    	  
+          switch (element.getType()) 
+          {  
+              // Handle Text Element
+              case Element.e_text_begin:
+            	  processText(page, reader, pageParaBlocks);
+            	  break;
+            	  // Handle Image Elements
+              case Element.e_image:                  
+              case Element.e_inline_image: 
+            	  processImage(element);
+            	  break;
+              // Handle Graphic Paths or Shapes
+              case Element.e_path  :
+            	  processPath(reader, element);
+            	  break; 
+              // Process Form XObject Element which internally comprise of Image, 
+              // Text or Path Elements  
+              case Element.e_form:
+            	  reader.formBegin(); 
+            	  processElements(doc, page, reader, pageParaBlocks);
+            	  reader.end();
+            	  break; 
+         } // End of switch (element.getType())
+      } // End of while ((element = reader.next()) != null)
+      
+   }
+
+   /**
+    * 
+    * @param page_reader
+    * @return
+    * @throws PDFNetException
+    */
+   
+   private Block processText(Page page, ElementReader page_reader, 
+		    				 List<ParaBlock> pageParaBlocks) throws PDFNetException
+   {
+      // Begin text element
+      System.out.println("Begin Text Block:");
+
+      Element element; 
+      while ((element = page_reader.next())!=null) 
+      {
+         switch (element.getType())
+         {
+            case Element.e_text_end: 
+               // Finish the text block
+               System.out.println("End Text Block.");
+               break;
+            case Element.e_text:
+               System.out.println("Element Text: " + element.getTextString());
+               // Find the corresponding line and para block
+				Rect bbox = element.getBBox();
+				if (bbox == null) continue;
+				// If the Text Box is not contained in the Page Crop Box, 
+				// then it is ignored 
+				if (!page.getCropBox().getRectangle().contains(bbox.getRectangle()))
+					continue;
+				   Iterator<ParaBlock> iter = pageParaBlocks.iterator();
+				   while(iter.hasNext()){
+					   ParaBlock paraBlock = iter.next();
+					   if (!findSelection(paraBlock.getBbox(), bbox.getRectangle())) continue;
+			       }
+                  
+				break;
+         }
+      }
+      return null;
+   }
+   
+   
+   private boolean findSelection(Rectangle2D.Double contBBox, Rectangle2D.Double elemBBox) 
+   {
+       if (contBBox.contains(elemBBox)) return true;
+       
+       // Converting to Float to reduce the double precision to find the match
+       Rectangle2D.Float elemRect = new Rectangle2D.Float();
+       elemRect.setRect((float) elemBBox.getX(), (float) elemBBox.getY(), 
+                      (float) elemBBox.getWidth(), (float) elemBBox.getHeight());
+       Rectangle2D.Float contRect = new Rectangle2D.Float();
+       contRect.setRect((float) contRect.getX(), (float) contRect.getY(), 
+                      (float) contRect.getWidth(), (float) contRect.getHeight());
+       if 
+       Rectangle2D intersectRect = contBBox.createIntersection(elemBBox);
+       // This calculates howmuch percentage of intersect area is coontained 
+       // inside the BBox. This calculation assumes the Word is smaller then the text.
+       double intersectWidth = intersectRect.getWidth();
+       double intersectHt = intersectRect.getHeight();
+       double percentInside = (intersectWidth * intersectHt)/
+                              (zrect.getHeight() * zrect.getWidth()); 
+       // If the intersection Rectangle Occupies 98% of the area of the Word 
+       // or Elem BBox, then the case 5 is satisfied
+       System.out.println("% Intersection Rect : " + percentInside);
+       if (percentInside > 0.95) return i1;
+   }
+}

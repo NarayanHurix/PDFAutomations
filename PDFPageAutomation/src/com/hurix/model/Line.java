@@ -8,17 +8,22 @@ public class Line
 {
    
    Rectangle2D.Double bbox;
-	List<CharData> words = new ArrayList<CharData>();
+	List<Word> words = new ArrayList<Word>();
+	public List<CharData> charDataList = new ArrayList<CharData>();
 
 	public Line(Rectangle2D.Double bbox) {
 	   this.bbox = bbox;
 	}
+	
+	public Rectangle2D.Double getBbox() {
+		return bbox;
+	}
 	 
-	public List<CharData> getWords() {
+	public List<Word> getWords() {
 		return words;
 	}
 
-	public void setWords(List<CharData> words) {
+	public void setWords(List<Word> words) {
 		this.words = words;
 	}
 

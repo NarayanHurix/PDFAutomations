@@ -19,7 +19,7 @@ import com.hurix.chain.input.ChainRequest;
 import com.hurix.model.Book;
 import com.hurix.model.Line;
 import com.hurix.model.ParaBlock;
-import com.hurix.model.CharData;
+import com.hurix.model.Word;
 import com.hurix.util.RectUtility;
 
 public class FindData implements Chain {
@@ -55,7 +55,7 @@ public class FindData implements Chain {
 			com.hurix.model.Page mypage = null;
 			ParaBlock mypara = null;
 			Line myline = null;
-			CharData myword = null;
+			Word myword = null;
 			
 			for (itr = inPdf.getPageIterator(); itr.hasNext(); ){
 				Page pg = (Page)(itr.next());
@@ -91,7 +91,7 @@ public class FindData implements Chain {
 						java.awt.geom.Point2D.Double wxy = matrix.multPoint(word.getBBox().getX1(), word.getBBox().getY1());
 						java.awt.geom.Point2D.Double wxy2 = matrix.multPoint(word.getBBox().getX2(), word.getBBox().getY2());
 						
-						myword = new CharData();
+						myword = new Word();
 						myword.setText(word.getString());
 						
 						myline.getWords().add(myword);

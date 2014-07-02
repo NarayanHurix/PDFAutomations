@@ -9,7 +9,7 @@ import com.hurix.chain.input.ChainRequest;
 import com.hurix.model.Book;
 import com.hurix.model.Line;
 import com.hurix.model.ParaBlock;
-import com.hurix.model.CharData;
+import com.hurix.model.Word;
 
 public class CreateJson implements Chain {
 	private Chain nextInChain;

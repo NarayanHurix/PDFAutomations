@@ -1,0 +1,52 @@
+package com.hurix.model;
+
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Word {
+	private String text="";
+	private boolean styleChanges;
+	private List<Style> styles = new ArrayList<Style>();
+	private List<Point2D.Double> positions = new ArrayList<Point2D.Double>();
+	private String rotationMatrix;
+	
+	public String getText() {
+		return text;
+	}
+	public void setText(String text) {
+		this.text = this.text + text;
+	}
+	public boolean isStyleChanges() {
+		return styleChanges;
+	}
+	public void setStyleChanges(boolean styleChanges) {
+		this.styleChanges = styleChanges;
+	}
+	public List<Style> getStyles() {
+		return styles;
+	}
+	public void setStyles(List<Style> styles) {
+		this.styles = styles;
+	}
+	public List<Point2D.Double> getPositions() {
+		return positions;
+	}
+	public void setPositions(List<Point2D.Double> positions) {
+		this.positions = positions;
+	}
+	public String getRotationMatrix() {
+		return rotationMatrix;
+	}
+	public void setRotationMatrix(String rotationMatrix) {
+		this.rotationMatrix = rotationMatrix;
+	}
+	@Override
+	public String toString() {
+		return "Word [text=" + text + ", styleChanges=" + styleChanges
+				+ ", styles=" + styles + ", positions=" + positions
+				+ ", rotationMatrix=" + rotationMatrix + "]";
+	}
+	
+	
+}

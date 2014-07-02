@@ -1,16 +1,27 @@
 package com.hurix.chain.impl;
 
 import java.awt.geom.GeneralPath;
+import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
+import java.util.Scanner;
 
+import pdftron.Common.Matrix2D;
 import pdftron.Common.PDFNetException;
+import pdftron.PDF.CharIterator;
+import pdftron.PDF.ColorPt;
+import pdftron.PDF.ColorSpace;
 import pdftron.PDF.Element;
 import pdftron.PDF.ElementReader;
 import pdftron.PDF.ElementWriter;
+import pdftron.PDF.Font;
 import pdftron.PDF.PDFDoc;
 import pdftron.PDF.Page;
 import pdftron.PDF.PageIterator;
@@ -20,12 +31,31 @@ import pdftron.PDF.TextExtractor;
 import com.hurix.chain.define.Chain;
 import com.hurix.chain.input.ChainRequest;
 import com.hurix.model.Block;
+import com.hurix.model.CharData;
+import com.hurix.model.Style;
+import com.hurix.model.Word;
 import com.hurix.model.Line;
 import com.hurix.model.ParaBlock;
 
 public class PDFBlockDetector implements Chain 
 {
 
+	static Map<String, String> glyphListMap = new HashMap<String, String>();
+	
+	static {
+		try {
+			Scanner scan = new Scanner(new File("/Users/narayan/Documents/Development/PDFSamples/glyphlist.txt"));
+			while (scan.hasNextLine()) {
+				String charMap = scan.nextLine();
+				String[] charVsCode = charMap.split(";");
+				glyphListMap.put(charVsCode[0], charVsCode[1]);
+			}
+			scan.close();
+		} catch (Exception ex) {
+			
+		}
+	}
+	
    private Chain nextInChain;
    private List<String> env;
    
@@ -124,6 +154,8 @@ public class PDFBlockDetector implements Chain
                                 List<ParaBlock> pageParaBlocks) throws PDFNetException 
    {
       Element element = null; 
+      Point2D.Double cropPt = new Point2D.Double(page.getCropBox().getX1(), 
+      														 page.getCropBox().getY1());
       while ((element = reader.next()) != null) 
       {
     	  
@@ -131,7 +163,7 @@ public class PDFBlockDetector implements Chain
           {  
               // Handle Text Element
               case Element.e_text_begin:
-            	  processText(page, reader);
+            	  processText(page, cropPt, reader, pageParaBlocks);
             	  break;
             	  // Handle Image Elements
               case Element.e_image:                  
@@ -161,7 +193,9 @@ public class PDFBlockDetector implements Chain
     * @throws PDFNetException
     */
    
-   private Block processText(Page page, ElementReader page_reader) throws PDFNetException
+   private Block processText(Page page, Point2D.Double cropPt, 
+   								  ElementReader page_reader, 
+   								  List<ParaBlock> pageParaBlocks) throws PDFNetException
    {
       // Begin text element
       System.out.println("Begin Text Block:");
@@ -184,12 +218,108 @@ public class PDFBlockDetector implements Chain
 				// then it is ignored 
 				if (!page.getCropBox().getRectangle().contains(bbox.getRectangle()))
 					continue;
-                
+				   Iterator<ParaBlock> paraIter = pageParaBlocks.iterator();
+				   while(paraIter.hasNext()){
+					   ParaBlock paraBlock = paraIter.next();
+					   if (!findSelection(paraBlock.getBbox(), bbox.getRectangle())) continue;
+					   Iterator<Line> lineIter = paraBlock.getLines().iterator();
+					   while(lineIter.hasNext()) {
+						   Line line = lineIter.next();
+						   if (!findSelection(line.getBbox(), bbox.getRectangle())) continue;
+						   populateCharData(element, cropPt, line);
+					   }
+			       }
+                  
 				break;
          }
       }
       return null;
    }
    
+   private void populateCharData(Element element, Point2D.Double cropPt, Line line) 
+   				 throws PDFNetException
+   {
+	   Font font = element.getGState().getFont();
+	   String[] fontGylphNames = null;
+	   if (Font.e_Type0 != font.getType()) {
+		   fontGylphNames = font.getEncoding();
+	   }
+
+	   // Deriving the Color of the Text
+	   ColorSpace cs_fill = element.getGState()
+				.getFillColorSpace();
+	   ColorPt fill = element.getGState().getFillColor();
+
+	   ColorPt fillout = cs_fill.convert2RGB(fill);
+
+	   String fillhex = String.format("#%02x%02x%02x",
+				(int) (fillout.get(0) * 255),
+				(int) (fillout.get(1) * 255),
+				(int) (fillout.get(2) * 255)).toUpperCase();
+
+	   // Deriving the Page Matrix to find the Char Position wrt the Page and
+	   // to derive the element font size
+	   Matrix2D ctm = element.getCTM();
+	   Matrix2D text_mtx = element.getTextMatrix();
+	   Matrix2D mtx = ctm.multiply(text_mtx);
+	   
+	   double scale_factor = Math.sqrt(mtx.getB() * mtx.getB() + mtx.getD() * mtx.getD());
+	   double page_font_sz = element.getGState().getFontSize()	* scale_factor;
+	   double horiz_scale = element.getGState().getHorizontalScale() / 100.0;
+		
+	   String fontName = element.getGState().getFont().getName().toLowerCase();
+	   if(fontName.indexOf("+") != -1){
+		   fontName = fontName.substring(fontName.indexOf("+") + 1);
+	   }
+	   
+		double x, y;
+		String text = element.getTextString();
+		CharIterator itr = element.getCharIterator();
+		Point2D.Double charLoc = null, charAdjLoc = null; 
+		while (itr.hasNext()) {
+			pdftron.PDF.CharData chardata = (pdftron.PDF.CharData) itr.next();
+
+			x = chardata.getGlyphX();
+			y = chardata.getGlyphY();
+			charLoc = mtx.multPoint(x, y);
+			break;
+		}
+		
+		// Determining the attributes of CharData
+		String rotMtx = mtx.getA()/scale_factor+"," + mtx.getB()/scale_factor+"," + 
+							 mtx.getC()/scale_factor+"," + mtx.getD()/scale_factor+"," + 
+							 mtx.getH()+"," + mtx.getV();
+		charAdjLoc = new Point2D.Double((charLoc.x-cropPt.x),(charLoc.y-cropPt.y) + 
+												  ((font.getAscent()*page_font_sz)/1000));
+		Style style = new Style(fontName, fillhex, page_font_sz);
+	   CharData charData = new CharData(text, style, charAdjLoc, rotMtx);
+	   line.charDataList.add(charData);
+   }
    
+   private boolean findSelection(Rectangle2D.Double contBBox, Rectangle2D.Double elemBBox) 
+   {
+       if (contBBox.contains(elemBBox)) return true;
+       
+       // Converting to Float to reduce the double precision to find the match
+       Rectangle2D.Float elemRect = new Rectangle2D.Float();
+       elemRect.setRect((float) elemBBox.getX(), (float) elemBBox.getY(), 
+                      (float) elemBBox.getWidth(), (float) elemBBox.getHeight());
+       Rectangle2D.Float contRect = new Rectangle2D.Float();
+       contRect.setRect((float) contRect.getX(), (float) contRect.getY(), 
+                        (float) contRect.getWidth(), (float) contRect.getHeight());
+       if (contRect.contains(elemRect)) return true;
+       
+       // This calculates howmuch percentage of intersect area is contained 
+       // inside the Container BBox. 
+       Rectangle2D intersectRect = contBBox.createIntersection(elemBBox);
+       double intersectWidth = intersectRect.getWidth();
+       double intersectHt = intersectRect.getHeight();
+       double percentInside = (intersectWidth * intersectHt)/
+                              (elemBBox.getHeight() * elemBBox.getWidth()); 
+       // If the intersection Rectangle Occupies 95% of the area of the  
+       // Element BBox, then its assumed selection is found
+       System.out.println("% Intersection Rect : " + percentInside);
+       if (percentInside > 0.95) return true;
+       return false;
+   }
 }

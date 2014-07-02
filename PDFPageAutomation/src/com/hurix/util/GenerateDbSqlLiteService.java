@@ -14,7 +14,7 @@ import com.hurix.model.Chapter;
 import com.hurix.model.Line;
 import com.hurix.model.Page;
 import com.hurix.model.ParaBlock;
-import com.hurix.model.CharData;
+import com.hurix.model.Word;
 
 public class GenerateDbSqlLiteService {
 	
@@ -64,8 +64,8 @@ public class GenerateDbSqlLiteService {
 		    		 for (ParaBlock para : paras) {
 		    			 List<Line> lines = para.getLines();
 		    			 for (Line line : lines) {
-		    				 List<CharData> words = line.getWords();
-		    				 for (CharData word : words) {
+		    				 List<Word> words = line.getWords();
+		    				 for (Word word : words) {
 		    					 table.insert(paraId,lineId,line.getY(),line.getHeight(),wordId,word.getX(),word.getWidth(),word.getText(),page.getPageId());
 		    					 wordId++;
 							}

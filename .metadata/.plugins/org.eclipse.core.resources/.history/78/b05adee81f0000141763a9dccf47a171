@@ -1,0 +1,16 @@
+package com.hurix.model;
+
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.List;
+
+public class CharData 
+{
+
+	private String text="";
+	private Style  style;
+	private List<Point2D.Double> positions = new ArrayList<Point2D.Double>();
+	private String rotationMatrix;
+	
+	
+}
