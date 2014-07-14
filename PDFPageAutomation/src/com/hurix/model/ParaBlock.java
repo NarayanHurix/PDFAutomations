@@ -36,8 +36,35 @@ public class ParaBlock extends Block
 	   lines.add(line);
 	}
 	
+	
+
 	@Override
 	public String toString() {
-		return "\nPara [type=" + type + ", lines=" + lines + "]";
+		return "\n\n\n\tParaBlock [type=" + type + ", paraId=" + paraId + ", bbox=" + bbox + ", \n\tlines="
+				+ lines  + "]";
 	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + paraId;
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		ParaBlock other = (ParaBlock) obj;
+		if (paraId != other.paraId)
+			return false;
+		return true;
+	}
+	
+	
 }

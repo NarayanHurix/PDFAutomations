@@ -1,26 +1,21 @@
 package com.hurix.chain.impl;
 
 import java.awt.geom.GeneralPath;
-import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Scanner;
 
 import pdftron.Common.Matrix2D;
 import pdftron.Common.PDFNetException;
 import pdftron.PDF.CharIterator;
-import pdftron.PDF.ColorPt;
-import pdftron.PDF.ColorSpace;
 import pdftron.PDF.Element;
 import pdftron.PDF.ElementReader;
-import pdftron.PDF.ElementWriter;
 import pdftron.PDF.Font;
 import pdftron.PDF.PDFDoc;
 import pdftron.PDF.Page;
@@ -31,15 +26,14 @@ import pdftron.PDF.TextExtractor;
 import com.hurix.chain.define.Chain;
 import com.hurix.chain.input.ChainRequest;
 import com.hurix.model.Block;
-import com.hurix.model.CharData;
-import com.hurix.model.Style;
-import com.hurix.model.Word;
+import com.hurix.model.Book;
+import com.hurix.model.Constants.paraType;
 import com.hurix.model.Line;
 import com.hurix.model.ParaBlock;
 
 public class PDFBlockDetector implements Chain 
 {
-
+	private static DecimalFormat df = new DecimalFormat("###.#");
 	static Map<String, String> glyphListMap = new HashMap<String, String>();
 	
 	static {
@@ -75,19 +69,27 @@ public class PDFBlockDetector implements Chain
       List<ParaBlock> pageParaBlocks = null;
       
       try {
+    	  Book book = request.getBook();
+    	  
          PDFDoc doc = (PDFDoc)request.getObj();
          int num_pages = doc.getPageCount();
-         ElementReader reader = new ElementReader();
+        
          int pgno = 0 ;
          for (int i = 1; i <= num_pages; ++i)
          {
+        	 ElementReader reader = new ElementReader();
+        	 com.hurix.model.Page pg = new com.hurix.model.Page();
+        	 book.getPages().add(pg);
+        	 
+        	 Map<Rectangle2D.Double,Line> positionVsLine = new HashMap<Rectangle2D.Double,Line>();
             PageIterator itr = doc.getPageIterator(i);
             Page page = (Page)(itr.next());
             reader.begin(page);
             pgno = page.getIndex();
             System.out.println("Processing Page Num: "+pgno);
-            pageParaBlocks = createPageParaBBox(page);
-            processElements(doc, page, reader, pageParaBlocks);     
+            pageParaBlocks = createPageParaBBox(page,positionVsLine);
+            processElements(doc, page, reader, pageParaBlocks,positionVsLine,pg);   
+            reader.destroy();
          }
       } catch(Exception e) {
          System.out.println("Unable to Process PDF for Word Seperation");
@@ -107,8 +109,10 @@ public class PDFBlockDetector implements Chain
     */
    
    private List<ParaBlock> 
-           createPageParaBBox(Page page) throws PDFNetException
+           createPageParaBBox(Page page,Map<Rectangle2D.Double,Line> positionVsLine) throws PDFNetException
    {
+	   Matrix2D matrix = page.getDefaultMatrix();
+	   
       ParaBlock paraBlock = null;
       GeneralPath paraBBox = null;
       List<ParaBlock> pageParaBlocks = null;
@@ -125,65 +129,91 @@ public class PDFBlockDetector implements Chain
       TextExtractor.Line line;
       
       // Building the Para Blocks and the corresponding BBox of the Para
-      for ( line = txt.getFirstLine(); line.isValid(); line=line.getNextLine())  
-      {  
+      for ( line = txt.getFirstLine(); line.isValid(); line=line.getNextLine()){  
+    	
+    	  //get crop box adjusted...
+    	  java.awt.geom.Point2D.Double lxy = matrix.multPoint(line.getBBox().getX1(), line.getBBox().getY1());
+			
          int paraId = line.getParagraphID();
          paraBBox = paraBBoxMap.get(paraId);
          paraBlock = paraBlockMap.get(paraId);
          if (paraBBox == null) {
             paraBBox = new GeneralPath();
             paraBlock = new ParaBlock(paraId);
+            paraBlock.setType(paraType.normal);
             pageParaBlocks.add(paraBlock);
             paraBBoxMap.put(paraId, paraBBox);
             paraBlockMap.put(paraId, paraBlock);
          }
-         paraBBox.append(line.getBBox().getRectangle(), true);
-         paraBlock.addLine(new Line(line.getBBox().getRectangle()));
+         Rectangle2D.Double lineBox = new Rectangle2D.Double(roundOff(lxy.getX()),roundOff(lxy.getY()),roundOff(line.getBBox().getWidth()),roundOff(line.getBBox().getHeight()));
+         Line ln = new Line(lineBox);
+         
+         paraBBox.append(lineBox, true);
+         paraBlock.addLine(ln);
+         positionVsLine.put(lineBox, ln);
       }
       
       // Setting the BBox of the Para Blocks based on the Bounds set in the 
       // GeneralPath of paraBBoxMap variable
       for (ParaBlock temp : pageParaBlocks) {
          paraBBox = (GeneralPath) paraBBoxMap.get(temp.paraId);
-         temp.setBbox((Rectangle2D.Double)paraBBox.getBounds2D());
+         temp.setBbox(new Rectangle2D.Double(paraBBox.getBounds2D().getX(),paraBBox.getBounds2D().getY(),paraBBox.getBounds2D().getWidth(),paraBBox.getBounds2D().getHeight()));
       }
+      
+      txt.destroy();
       return pageParaBlocks;
    }
 
+   private static double roundOff(double input){
+		return Double.parseDouble(df.format(input));
+	}
+   
    private void processElements(PDFDoc doc, Page page, ElementReader reader,  
-                                List<ParaBlock> pageParaBlocks) throws PDFNetException 
+                                List<ParaBlock> pageParaBlocks,Map<Rectangle2D.Double,Line> positionVsLine,com.hurix.model.Page pg) throws PDFNetException 
    {
       Element element = null; 
-      Point2D.Double cropPt = new Point2D.Double(page.getCropBox().getX1(), 
-      														 page.getCropBox().getY1());
+     
       while ((element = reader.next()) != null) 
       {
-      	 ArrayList<Block> blocks = new ArrayList<Block>(); 
-    	  	 Block block = null;
+
+    	  Block block = null;
           switch (element.getType()) 
           {  
               // Handle Text Element
-              case Element.e_text_begin:
-            	  block = processText(page, cropPt, reader, pageParaBlocks);
+              case Element.e_text:
+            	  Rect bbox = element.getBBox();
+  					if (bbox == null) continue;
+  					
+            	  block = processText(page, element, pageParaBlocks,positionVsLine);
             	  break;
             	  // Handle Image Elements
               case Element.e_image:                  
               case Element.e_inline_image: 
-            	  block = processImage(element);
+            	  //block = processImage(element);
             	  break;
               // Handle Graphic Paths or Shapes
               case Element.e_path  :
-            	  block = processPath(reader, element);
+            	 // block = processPath(reader, element);
             	  break; 
               // Process Form XObject Element which internally comprise of Image, 
               // Text or Path Elements  
               case Element.e_form:
             	  reader.formBegin(); 
-            	  processElements(doc, page, reader, pageParaBlocks);
+            	  processElements(doc, page, reader, pageParaBlocks,positionVsLine,pg);
             	  reader.end();
             	  break; 
-         } // End of switch (element.getType())
-      } // End of while ((element = reader.next()) != null)
+         } 
+          if(block != null){
+        	  
+        	  if(!pg.getBlocks().contains(block)){
+        		 
+        		  pg.getBlocks().add(block);
+        	  }
+        	  
+          }
+          
+          
+      } 
       
    }
 
@@ -194,133 +224,121 @@ public class PDFBlockDetector implements Chain
     * @throws PDFNetException
     */
    
-   private Block processText(Page page, Point2D.Double cropPt, 
-   								  ElementReader page_reader, 
-   								  List<ParaBlock> pageParaBlocks) throws PDFNetException
-   {
-      // Begin text element
-      System.out.println("Begin Text Block:");
+   private Block processText(Page page,  Element element, 
+   								  List<ParaBlock> pageParaBlocks,Map<Rectangle2D.Double,Line> positionVsLine) throws PDFNetException {
+     
+	   Matrix2D matrix = page.getDefaultMatrix();
+	   Rect bbox = element.getBBox();
+	   double cropBoxX1 = roundOff(page.getCropBox().getX1());
+		double cropBoxY1 = roundOff(page.getCropBox().getY1());
+		Line lineRef = null;
+		Rectangle2D.Double runRectRef = null;
+		
+		java.awt.geom.Point2D.Double wxy = matrix.multPoint(bbox.getX1(), bbox.getY1());
+		java.awt.geom.Point2D.Double wxy2 = matrix.multPoint(bbox.getX2(), bbox.getY2());
 
-      Element element; 
-      while ((element = page_reader.next())!=null) 
-      {
-         switch (element.getType())
-         {
-            case Element.e_text_end: 
-               // Finish the text block
-               System.out.println("End Text Block.");
-               break;
-            case Element.e_text:
-               System.out.println("Element Text: " + element.getTextString());
-               // Find the corresponding line and para block
-				Rect bbox = element.getBBox();
-				if (bbox == null) continue;
-				// If the Text Box is not contained in the Page Crop Box, 
-				// then it is ignored 
-				if (!page.getCropBox().getRectangle().contains(bbox.getRectangle()))
-					continue;
-				   Iterator<ParaBlock> paraIter = pageParaBlocks.iterator();
-				   while(paraIter.hasNext()){
-					   ParaBlock paraBlock = paraIter.next();
-					   if (!findSelection(paraBlock.getBbox(), bbox.getRectangle())) continue;
-					   Iterator<Line> lineIter = paraBlock.getLines().iterator();
-					   while(lineIter.hasNext()) {
-						   Line line = lineIter.next();
-						   if (!findSelection(line.getBbox(), bbox.getRectangle())) continue;
-						   populateCharData(element, cropPt, line);
-					   }
-			       }
-                  
-				break;
-         }
-      }
+		
+		Matrix2D ctm = element.getCTM();
+		Matrix2D text_mtx = element.getTextMatrix();
+		Matrix2D mtx = ctm.multiply(text_mtx);
+		Font font = element.getGState().getFont();
+		double x, y;					
+		CharIterator itr = element.getCharIterator();
+		
+		double scale_factor = Math.sqrt(mtx.getB()*mtx.getB() + mtx.getD()*mtx.getD());
+	
+		double page_font_sz = element.getGState().getFontSize() * scale_factor;
+		double horiz_scale = element.getGState().getHorizontalScale() / 100.0;
+		
+		com.hurix.model.CharData cd = null;
+		boolean firstRun = true;
+		while ( itr.hasNext())	{
+			pdftron.PDF.CharData chardata =(pdftron.PDF.CharData)itr.next(); 
+		
+			x = chardata.getGlyphX(); 
+			y = chardata.getGlyphY();
+			
+			java.awt.geom.Point2D.Double t=mtx.multPoint(x, y);
+			
+			double posX =  roundOff(t.x-cropBoxX1);
+			double posY =  roundOff((t.y-cropBoxY1)  + ((font.getDescent() * page_font_sz)/1000));
+			double height = wxy2.y - wxy.y + ((font.getDescent() * page_font_sz)/1000);
+		
+			if(firstRun){
+				Rectangle2D.Double runRect = new Rectangle2D.Double(posX, posY, bbox.getWidth(), height);
+				runRectRef = runRect;
+				
+				for (Map.Entry<Rectangle2D.Double,Line> entry : positionVsLine.entrySet()) {
+					if(findSelection(entry.getKey(), runRect)){
+						lineRef = positionVsLine.get(entry.getKey());
+							break;
+					}
+				}
+				
+				firstRun = false;
+			}
+			
+			//if still null.... meaning either this is hidden text or out of crop box.. ignore
+			if(lineRef == null){
+				 return null;
+			}
+
+			
+			if(cd == null){
+				cd = new com.hurix.model.CharData(runRectRef);
+				lineRef.charDataList.add(cd);
+			}
+			
+			if(" ".equalsIgnoreCase((char)chardata.getCharCode() + "")){
+				cd = null;
+				continue;
+			}
+			
+			if(cd.text == null){
+				cd.text = (char)chardata.getCharCode()+"";
+			}else{
+				cd.text = cd.text + (char)chardata.getCharCode();
+			}
+
+		}
+		
+		for (ParaBlock paraBlock : pageParaBlocks) {
+			if(paraBlock.getLines().contains(lineRef)){
+				return paraBlock;
+			}
+		}
+		
+             
       return null;
    }
    
-   private void populateCharData(Element element, Point2D.Double cropPt, Line line) 
-   				 throws PDFNetException
-   {
-	   Font font = element.getGState().getFont();
-	   String[] fontGylphNames = null;
-	   if (Font.e_Type0 != font.getType()) {
-		   fontGylphNames = font.getEncoding();
-	   }
 
-	   // Deriving the Color of the Text
-	   ColorSpace cs_fill = element.getGState()
-				.getFillColorSpace();
-	   ColorPt fill = element.getGState().getFillColor();
-
-	   ColorPt fillout = cs_fill.convert2RGB(fill);
-
-	   String fillhex = String.format("#%02x%02x%02x",
-				(int) (fillout.get(0) * 255),
-				(int) (fillout.get(1) * 255),
-				(int) (fillout.get(2) * 255)).toUpperCase();
-
-	   // Deriving the Page Matrix to find the Char Position wrt the Page and
-	   // to derive the element font size
-	   Matrix2D ctm = element.getCTM();
-	   Matrix2D text_mtx = element.getTextMatrix();
-	   Matrix2D mtx = ctm.multiply(text_mtx);
-	   
-	   double scale_factor = Math.sqrt(mtx.getB() * mtx.getB() + mtx.getD() * mtx.getD());
-	   double page_font_sz = element.getGState().getFontSize()	* scale_factor;
-	   double horiz_scale = element.getGState().getHorizontalScale() / 100.0;
-		
-	   String fontName = element.getGState().getFont().getName().toLowerCase();
-	   if(fontName.indexOf("+") != -1){
-		   fontName = fontName.substring(fontName.indexOf("+") + 1);
-	   }
-	   
-		double x, y;
-		String text = element.getTextString();
-		CharIterator itr = element.getCharIterator();
-		Point2D.Double charLoc = null, charAdjLoc = null; 
-		while (itr.hasNext()) {
-			pdftron.PDF.CharData chardata = (pdftron.PDF.CharData) itr.next();
-
-			x = chardata.getGlyphX();
-			y = chardata.getGlyphY();
-			charLoc = mtx.multPoint(x, y);
-			break;
-		}
-		
-		// Determining the attributes of CharData
-		String rotMtx = mtx.getA()/scale_factor+"," + mtx.getB()/scale_factor+"," + 
-							 mtx.getC()/scale_factor+"," + mtx.getD()/scale_factor+"," + 
-							 mtx.getH()+"," + mtx.getV();
-		charAdjLoc = new Point2D.Double((charLoc.x-cropPt.x),(charLoc.y-cropPt.y) + 
-												  ((font.getAscent()*page_font_sz)/1000));
-		Style style = new Style(fontName, fillhex, page_font_sz);
-	   CharData charData = new CharData(text, style, charAdjLoc, rotMtx);
-	   line.charDataList.add(charData);
-   }
-   
    private boolean findSelection(Rectangle2D.Double contBBox, Rectangle2D.Double elemBBox) 
    {
-       if (contBBox.contains(elemBBox)) return true;
-       
-       // Converting to Float to reduce the double precision to find the match
-       Rectangle2D.Float elemRect = new Rectangle2D.Float();
-       elemRect.setRect((float) elemBBox.getX(), (float) elemBBox.getY(), 
-                      (float) elemBBox.getWidth(), (float) elemBBox.getHeight());
-       Rectangle2D.Float contRect = new Rectangle2D.Float();
-       contRect.setRect((float) contRect.getX(), (float) contRect.getY(), 
-                        (float) contRect.getWidth(), (float) contRect.getHeight());
-       if (contRect.contains(elemRect)) return true;
-       
-       // This calculates howmuch percentage of intersect area is contained 
-       // inside the Container BBox. 
-       Rectangle2D intersectRect = contBBox.createIntersection(elemBBox);
-       double intersectWidth = intersectRect.getWidth();
-       double intersectHt = intersectRect.getHeight();
-       double percentInside = (intersectWidth * intersectHt)/
-                              (elemBBox.getHeight() * elemBBox.getWidth()); 
-       // If the intersection Rectangle Occupies 95% of the area of the  
-       // Element BBox, then its assumed selection is found
-       System.out.println("% Intersection Rect : " + percentInside);
-       if (percentInside > 0.95) return true;
-       return false;
+	   if(contBBox.intersects(elemBBox)){
+			
+			double lineY = contBBox.y;
+			double lineY2 = contBBox.y - contBBox.height;
+			double lineX = contBBox.x;
+			double lineX2 = contBBox.x + contBBox.width;
+			
+
+			
+			double eleY = elemBBox.y;
+
+			double eleX = elemBBox.x;
+
+
+			if(
+					eleY <= lineY && eleY >= lineY2 &&
+					eleX <= lineX2 && eleX >= lineX					
+					){
+				return true;
+			}
+			
+			
+			
+		}
+		return false;
    }
 }

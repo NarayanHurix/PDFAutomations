@@ -29,7 +29,11 @@ public class Line
 
 	@Override
 	public String toString() {
-		return "\n\tLine [words=" + words + "]";
+		return "\n\tLine [bbox=" + bbox + ", charDataList=" + charDataList + "]";
 	}
+
+	
+
+	
 	
 }
